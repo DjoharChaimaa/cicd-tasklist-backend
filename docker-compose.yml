@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: tasklist-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-tasklist_password}
+      MYSQL_DATABASE: ${DB_NAME:-tasklist_db}
+      MYSQL_USER: ${DB_USER:-tasklist_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-tasklist_password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -P 3306 -u ${DB_USER:-root} -p${DB_PASSWORD:-tasklist_password} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Application
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tasklist-backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: mysql://${DB_USER:-tasklist_user}:${DB_PASSWORD:-tasklist_password}@mysql:3306/${DB_NAME:-tasklist_db}
+      PORT: ${PORT:-3000}
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  default:
+    name: tasklist-network
